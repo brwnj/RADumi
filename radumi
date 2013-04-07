@@ -49,12 +49,9 @@ def valid_umi(iupac, umi):
 
 def run_dump(args):
     """fastq, umi, position"""
-    # could just pass the length of the UMI and the position,
-    # but later I may want the quality
-    leng = len(args.umi)
-    with nopen(args.fastq) as fastq:
-        for name, seq, qual in read_fastq(fastq):
-            umi = seq[:leng] if args.position == "5" else seq[-leng:]
+    with nopen(args.fastq) as fh:
+        for name, seq, qual in read_fastq(fh):
+            umi = seq[:args.length]
             print ">%s\n%s" % (name.split()[0], umi)
 
 def fasta_to_dict(fasta):
@@ -66,12 +63,12 @@ def fasta_to_dict(fasta):
             d[name.split()[0]] = seq
     return d
 
-def run_addumi(args):
+def run_add(args):
     """fastq, fasta"""
     umi_d = fasta_to_dict(args.fasta)
     umi_qual = ']' * len(umi_d[umi_d.keys()[0]])
-    with nopen(args.fastq) as fastq:
-        for name, seq, qual in read_fastq(fastq):
+    with nopen(args.fastq) as fh:
+        for name, seq, qual in read_fastq(fh):
             try:
                 umi = umi_d[name.split()[0]]
                 assert len(umi) == len(umi_qual)
@@ -93,9 +90,30 @@ def run_sort(args):
                 tr "\\t" "\\n\""""
     print "".join([line for line in nopen(cmd)])
 
+def run_scan(args):
+    """fastq, umi, five, three"""
+    #"@%s\n%s\n+\n%s" % (name, seq[leng:], qual[leng:])
+    
+    leng = len(args.umi)
+    with nopen(args.fastq) as fh:
+        fqiter = read_fastq(fh)
+        for name, seq, qual in fqiter:
+            umiseq = seq[:leng]
+            
+            # testing
+            if umiseq == "AAAAAAAG":
+                sys.exit()
+            # skip anything with an invalid UMI
+            if not valid_umi(args.umi, umiseq): continue
+            for match, group in groupby(fqiter, lambda (n,s,q): s[:leng] == umiseq):
+                if match:
+                    # compile all the reads of this UMI using
+                    # g is an iterable of name, seq, qual
+                    for name, seq, qual in group:
+                        print seq
+                break
+
 def main(args):
-    # take most abundant sequence for each UMI using a Counter
-        # this would likely be a fasta...
     args.func(args)
 
 if __name__ == "__main__":
@@ -105,26 +123,35 @@ if __name__ == "__main__":
     subp = p.add_subparsers(help='commands')
 
     # dump UMI sequence from R1 into fasta
-    fdump = subp.add_parser('dump', description="Prints fasta of read name and UMI sequence. No UMI-based filtering occurs.",
-            help="if R2 has no UMI, use this to later add R1 UMI to the correct R2 read")
+    fdump = subp.add_parser('dump', description="Prints fasta of read name and 5' UMI sequence.",
+            help="obtain fasta of read name and 5' UMI sequence")
     fdump.add_argument('fastq', metavar="FASTQ", help="fastq containing a UMI")
-    fdump.add_argument('umi', metavar="UMI", help="IUPAC UMI sequence, e.g. NNNNNV")
-    fdump.add_argument('--position', choices=['5', '3'], default='5', help="UMI location on the read [ %(default)s ]")
+    fdump.add_argument('length', metavar="LENGTH", help="length of the UMI sequence")
     fdump.set_defaults(func=run_dump)
 
     # attach UMI of R1 onto R2 for identification
-    faddumi = subp.add_parser('addumi', description="Add UMI of dumped fasta onto matched read name of fastq on the 5' end. Fastq quality of the UMI will be ']'",
-            help="add 5' UMI from dumped fasta onto reads of fastq")
-    faddumi.add_argument('fastq', metavar="FASTQ", help="reads onto which to add the UMI")
-    faddumi.add_argument('fasta', metavar="FASTA", help="dumped UMI sequences")
-    faddumi.set_defaults(func=run_addumi)
+    fadd = subp.add_parser('add', description="Add UMI of dumped FASTA onto matched read name of FASTQ on the 5' end. Quality of the UMI will be ']'.",
+            help="add 5' UMI from dumped fasta onto reads of FASTQ")
+    fadd.add_argument('fastq', metavar="FASTQ", help="reads onto which to add the UMI")
+    fadd.add_argument('fasta', metavar="FASTA", help="dumped UMI sequences")
+    fadd.set_defaults(func=run_add)
 
     # sorting the fastq by umi
-    fsort = subp.add_parser('sort', description="Sorts fastq by UMI. Prints sorted fastq to stdout.",
+    fsort = subp.add_parser('sort', description="Sorts fastq by UMI.",
             help="order the fastq by the UMI to facilitate processing")
     fsort.add_argument('fastq', metavar='FASTQ',
             help='unsorted reads with incorporated UMI')
     fsort.add_argument('length', metavar='LENGTH',
             help='length of the UMI sequence')
     fsort.set_defaults(func=run_sort)
+    
+    # find most abundance sequence per umi
+    fscan = subp.add_parser('scan', description="Finds most abundant sequence per valid UMI.",
+            help="find most abundant sequence per UMI")
+    fscan.add_argument('fastq', metavar="FASTQ", help="reads with UMI to scan")
+    fscan.add_argument('umi', metavar="UMI", help='IUPAC sequence of the UMI, e.g. NNNNNV')
+    fscan.add_argument('-5', dest='five', type=int, default=0, help="number of 5' bases to trim AFTER the UMI sequence [ %(default)s ]")
+    fscan.add_argument('-3', dest='three', type=int, default=0, help="number of 3' bases to trim [ %(default)s ]")
+    fscan.set_defaults(func=run_scan)
+    
     main(p.parse_args())
