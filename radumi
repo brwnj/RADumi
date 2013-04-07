@@ -128,11 +128,30 @@ def run_dump(args):
             umi = seq[:leng] if args.position == "5" else seq[-leng:]
             print ">%s\n%s" % (name.split()[0], umi)
 
-def run_addumi():
-    """"""
-    pass
+def fasta_to_dict(fasta):
+    """docstring for fasta_to_dict"""
+    d = {}
+    with nopen(fasta) as fh:
+        for name, seq in read_fasta(fh):
+            # should no longer need to split here
+            d[name.split()[0]] = seq
+    return d
 
-def run_sort():
+def run_addumi(args):
+    """fastq, fasta"""
+    umi_d = fasta_to_dict(args.fasta)
+    umi_qual = ']' * len(umi_d[umi_d.keys()[0]])
+    with nopen(args.fastq) as fastq:
+        for name, seq, qual in read_fastq(fastq):
+            try:
+                umi = umi_d[name.split()[0]]
+                assert len(umi) == len(umi_qual)
+            except KeyError:
+                # read not present in R1; flag with invalid UMI
+                umi = 'X' * len(umi_qual)
+            print "@%s\n%s%s\n+\n%s%s" % (name, umi, seq, umi_qual, qual)
+
+def run_sort(args):
     """docstring for run_sort"""
     pass
 
@@ -157,11 +176,10 @@ if __name__ == "__main__":
     fdump.add_argument('--position', choices=['5', '3'], default='5', help="UMI location on the read [ %(default)s ]")
     fdump.set_defaults(func=run_dump)
     # attach UMI of R1 onto R2 for identification
-    faddumi = subp.add_parser('addumi', description="Add UMI of dumped fasta onto matched read name of fastq. Fastq quality of the UMI will be ']'",
-            help="add UMI onto reads from dumped fasta")
+    faddumi = subp.add_parser('addumi', description="Add UMI of dumped fasta onto matched read name of fastq on the 5' end. Fastq quality of the UMI will be ']'",
+            help="add 5' UMI from dumped fasta onto reads of fastq")
     faddumi.add_argument('fastq', metavar="FASTQ", help="reads onto which to add the UMI")
-    faddumi.add_argument('--position', choices=['5', '3'], default="5", 
-            help="location to add UMI onto read [ %(default)s ]")
+    faddumi.add_argument('fasta', metavar="FASTA", help="dumped UMI sequences")
     faddumi.set_defaults(func=run_addumi)
     # sorting the fastq by umi
     fsort = subp.add_parser('sort', description="Sorts fastq by UMI. Prints sorted fastq to stdout.",
