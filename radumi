@@ -133,9 +133,12 @@ if __name__ == "__main__":
     fdump.add_argument('--position', choices=['5', '3'], default='5', help="UMI location on the read [ %(default)s ]")
     fdump.set_defaults(func=run_dump)
     # attach UMI of R1 onto R2 for identification
-    faddumi = subp.add_parser('addumi', description="Add UMI of R1 onto R2 (or whatever)")
-    faddumi.add_argument('fastq')
-    
+    faddumi = subp.add_parser('addumi', description="Add UMI of dumped fasta onto matched read name of fastq. Fastq quality of the UMI will be ']'",
+            help="add UMI onto reads from dumped fasta")
+    faddumi.add_argument('fastq', metavar="FASTQ", help="reads onto which to add the UMI")
+    faddumi.add_argument('--position', choices=['5', '3'], default="5", 
+            help="location to add UMI onto read [ %(default)s ]")
+    faddumi.set_defaults(func=run_addumi)
     # sorting the fastq by umi
     fsort = subp.add_parser('sort', description="Sorts fastq by UMI. Prints sorted fastq to stdout.",
             help="order the fastq by the UMI to facilitate processing")
