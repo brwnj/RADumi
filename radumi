@@ -1,14 +1,12 @@
 #!/usr/bin/env python
 # encoding: utf-8
 """
-Tools to handle reads sequenced with unique molecular identifiers (UMIs).
+Finding unique restriction site associated DNA (RAD) tag sequences per unique
+molecular identifier (UMI).
 """
 import sys
 from toolshed import nopen
 from itertools import islice, groupby, izip
-
-import os
-os.environ['TERM'] = 'linux'
 
 IUPAC = {"A":"A","T":"T","C":"C","G":"G","R":"GA","Y":"TC",
          "M":"AC","K":"GT","S":"GC","W":"AT","H":"ACT",
@@ -40,14 +38,7 @@ def read_fasta(fa):
             yield name, seq
 
 def valid_umi(iupac, umi):
-    """parse UMI sequence to validate against IUPAC sequence.
-    
-    >>> valid_umi("NNNV", "ACGT")
-    False
-
-    >>> valid_umi("NNNV", "ACGG")
-    True
-    """
+    """parse UMI sequence to validate against IUPAC sequence."""
     for code, base in izip(iupac, umi):
         try:
             if not base in IUPAC[code]:
@@ -55,68 +46,6 @@ def valid_umi(iupac, umi):
         except KeyError:
             return False
     return True
-
-def create_record(name, seq, qual, iupac_umi, length, end):
-    """
-    # UMI on the 5' end
-    >>> create_record("cluster_455",\
-            "GGGGGAGCCACGAGGTGTGTTTTATTTTCATTATTC",\
-            "C===>=B=@:<;4A;8=9?6EEC0?DDA72B@3EB4",\
-            "NNNNNV", 6, "5")
-    '@cluster_455:UMI_GGGGGA\\nGCCACGAGGTGTGTTTTATTTTCATTATTC\\n+\\nB=@:<;4A;8=9?6EEC0?DDA72B@3EB4'
-
-    # invalid UMI
-    >>> create_record("cluster_455",\
-            "GGGGGTGCCACGATTCATTATTC",\
-            "C===>=B=@:0?DDA72B@3EB4",\
-            "NNNNNV", 6, "5")
-    (False, 'GGGGGT')
-
-    # UMI on the 3' end
-    >>> create_record("cluster_455",\
-            "GGGGGAGCCACGAGGTGTGTTTTATTTTCATTATTC",\
-            "C===>=B=@:<;4A;8=9?6EEC0?DDA72B@3EB4",\
-            "NNNNNV", 6, "3")
-    '@cluster_455:UMI_TTATTC\\nGGGGGAGCCACGAGGTGTGTTTTATTTTCA\\n+\\nC===>=B=@:<;4A;8=9?6EEC0?DDA72'
-    """
-    if end == "5":
-        umi = seq[:length]
-        # validate
-        if valid_umi(iupac_umi, umi):
-            # make record and return
-            return "@%s:UMI_%s\n%s\n+\n%s" % \
-                        (name, umi, seq[length:], qual[length:])
-        else:
-            return False, umi
-    else: # 3' end
-        umi = seq[-length:]
-        # validate
-        if valid_umi(iupac_umi, umi):
-            # make record and return
-            return "@%s:UMI_%s\n%s\n+\n%s" % \
-                        (name, umi, seq[:-length], qual[:-length])
-        else:
-            return False, umi
-
-def process_fastq(args):
-    """for every valid umi, trim while incorporating into read name."""
-    umi_stats = Counter()
-    umi_length = len(args.umi)
-    with nopen(args.fastq) as fastq:
-        for name, seq, qual in read_fastq(fastq):
-            record = create_record(name, seq, qual, args.umi, umi_length, args.end)
-            if record[0]:
-                print record
-            else:
-                record, umi = record
-                umi_stats.update([umi])
-    if args.verbose:
-        print >> sys.stderr, "Invalid UMI Total:   %d" % sum(umi_stats.values())
-        print >> sys.stderr, "Unique UMIs Removed: %d" % len(list(umi_stats))
-        # could option this out
-        print >> sys.stderr, "Top 10 Invalid UMIs:"
-        for umi, val in umi_stats.most_common(10):
-            print >> sys.stderr, "\t".join([umi, str(val)])
 
 def run_dump(args):
     """fastq, umi, position"""
@@ -152,29 +81,29 @@ def run_addumi(args):
             print "@%s\n%s%s\n+\n%s%s" % (name, umi, seq, umi_qual, qual)
 
 def run_sort(args):
-    """
-    gunzip -c Bufo_109_TAGGTA_L004_R1_001.fastq.gz |\
-     awk '{ printf($0); n++; if(n%4==0){ printf("\n") } else { printf("\t") } }' |\
-     awk '{ i=substr($2,1,8); printf("%s\t%s\n", i, $0) }' |\
-     sort -k1,1 |\
-     cut -f 2,3,4,5 |\
-     tr "\t" "\n" |\
-     gzip -c > Bufo_109_TAGGTA_L004_R1_001.umisorted.fastq.gz """
-    pass
+    """fastq, length"""
+    if args.fastq.endswith(".gz"):
+        cmd = "| gunzip -c %s | " % args.fastq
+    else:
+        cmd = "| zcat %s | " % args.fastq
+    cmd += """awk '{ printf($0); n++; if(n%4==0){ printf("\\n") } else { printf("\\t") } }' | \
+                awk '{ i=substr($2,1,8); print i"\\t"$0 }' | \
+                sort -k1,1 | \
+                cut -f 2,3,4,5 | \
+                tr "\\t" "\\n\""""
+    print "".join([line for line in nopen(cmd)])
 
 def main(args):
-    # add the UMI of read1name onto the sequence of read2 in the loca
-    # sort the fastqs by UMI
     # take most abundant sequence for each UMI using a Counter
         # this would likely be a fasta...
     args.func(args)
 
 if __name__ == "__main__":
     import argparse
-    import doctest
     p = argparse.ArgumentParser(description=__doc__,
             formatter_class=argparse.RawDescriptionHelpFormatter)
     subp = p.add_subparsers(help='commands')
+
     # dump UMI sequence from R1 into fasta
     fdump = subp.add_parser('dump', description="Prints fasta of read name and UMI sequence. No UMI-based filtering occurs.",
             help="if R2 has no UMI, use this to later add R1 UMI to the correct R2 read")
@@ -182,25 +111,20 @@ if __name__ == "__main__":
     fdump.add_argument('umi', metavar="UMI", help="IUPAC UMI sequence, e.g. NNNNNV")
     fdump.add_argument('--position', choices=['5', '3'], default='5', help="UMI location on the read [ %(default)s ]")
     fdump.set_defaults(func=run_dump)
+
     # attach UMI of R1 onto R2 for identification
     faddumi = subp.add_parser('addumi', description="Add UMI of dumped fasta onto matched read name of fastq on the 5' end. Fastq quality of the UMI will be ']'",
             help="add 5' UMI from dumped fasta onto reads of fastq")
     faddumi.add_argument('fastq', metavar="FASTQ", help="reads onto which to add the UMI")
     faddumi.add_argument('fasta', metavar="FASTA", help="dumped UMI sequences")
     faddumi.set_defaults(func=run_addumi)
+
     # sorting the fastq by umi
     fsort = subp.add_parser('sort', description="Sorts fastq by UMI. Prints sorted fastq to stdout.",
             help="order the fastq by the UMI to facilitate processing")
     fsort.add_argument('fastq', metavar='FASTQ',
             help='unsorted reads with incorporated UMI')
-    fsort.add_argument('umi', metavar='UMI',
-            help='IUPAC UMI sequence, e.g. NNNNNV')
-    fsort.add_argument('--position', choices=['5', '3'], default="5", 
-            help="UMI location on the read [ %(default)s ]")
-    fsort.add_argument('--verbose', action='store_true',
-            help="print UMI stats to stderr [ %(default)s ]")
+    fsort.add_argument('length', metavar='LENGTH',
+            help='length of the UMI sequence')
     fsort.set_defaults(func=run_sort)
-
-    if doctest.testmod(optionflags=doctest.ELLIPSIS |\
-                                   doctest.NORMALIZE_WHITESPACE).failed == 0:
-        main(p.parse_args())
+    main(p.parse_args())
