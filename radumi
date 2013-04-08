@@ -6,6 +6,7 @@ molecular identifier (UMI).
 """
 import sys
 from toolshed import nopen
+from collections import Counter
 from itertools import islice, groupby, izip
 
 IUPAC = {"A":"A","T":"T","C":"C","G":"G","R":"GA","Y":"TC",
@@ -82,36 +83,41 @@ def run_sort(args):
     if args.fastq.endswith(".gz"):
         cmd = "| gunzip -c %s | " % args.fastq
     else:
-        cmd = "| zcat %s | " % args.fastq
+        cmd = "| cat %s | " % args.fastq
     cmd += """awk '{ printf($0); n++; if(n%4==0){ printf("\\n") } else { printf("\\t") } }' | \
                 awk '{ i=substr($2,1,8); print i"\\t"$0 }' | \
                 sort -k1,1 | \
                 cut -f 2,3,4,5 | \
                 tr "\\t" "\\n\""""
-    print "".join([line for line in nopen(cmd)])
+    print "\n".join([line[:-1] for line in nopen(cmd)])
+
+def trimmed_seq(seq, leng, t5, t3):
+    """docstring for trimmed_seq"""
+    return seq[leng + t5:-t3] if t3 > 0 else seq[leng + t5:]
 
 def run_scan(args):
     """fastq, umi, five, three"""
-    #"@%s\n%s\n+\n%s" % (name, seq[leng:], qual[leng:])
-    
     leng = len(args.umi)
     with nopen(args.fastq) as fh:
         fqiter = read_fastq(fh)
         for name, seq, qual in fqiter:
             umiseq = seq[:leng]
-            
-            # testing
-            if umiseq == "AAAAAAAG":
-                sys.exit()
             # skip anything with an invalid UMI
             if not valid_umi(args.umi, umiseq): continue
+            # count unique sequences
+            seqs = Counter()
+            # add the current sequence
+            seqs.update([trimmed_seq(seq, leng, args.five, args.three)])
+            # get the remaining sequences of this UMI
             for match, group in groupby(fqiter, lambda (n,s,q): s[:leng] == umiseq):
                 if match:
                     # compile all the reads of this UMI using
-                    # g is an iterable of name, seq, qual
-                    for name, seq, qual in group:
-                        print seq
-                break
+                    for gname, gseq, gqual in group:
+                        seqs.update([trimmed_seq(gseq, leng, args.five, args.three)])
+                else:
+                    break
+            # print a fasta record
+            print ">%s\n%s" % (umiseq, seqs.most_common(1)[0][0])
 
 def main(args):
     args.func(args)
