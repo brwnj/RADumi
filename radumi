@@ -132,7 +132,7 @@ if __name__ == "__main__":
     fdump = subp.add_parser('dump', description="Prints fasta of read name and 5' UMI sequence.",
             help="obtain fasta of read name and 5' UMI sequence")
     fdump.add_argument('fastq', metavar="FASTQ", help="fastq containing a UMI")
-    fdump.add_argument('length', metavar="LENGTH", help="length of the UMI sequence")
+    fdump.add_argument('length', metavar="LENGTH", type=int, help="length of the UMI sequence")
     fdump.set_defaults(func=run_dump)
 
     # attach UMI of R1 onto R2 for identification
