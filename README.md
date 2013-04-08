@@ -83,3 +83,10 @@ optional arguments:
   -5 FIVE     number of 5' bases to trim AFTER the UMI sequence [ 0 ]
   -3 THREE    number of 3' bases to trim [ 0 ]
 ```
+
+##Dependencies
+
+Uses `toolshed`.
+```
+pip install toolshed
+```
