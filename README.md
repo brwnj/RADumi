@@ -2,6 +2,23 @@
 
 Finding unique restriction site associated DNA (RAD) tag sequences per unique molecular identifier (UMI).
 
+```
+usage: radumi [-h] {sort,add,dump,scan} ...
+
+Finding unique restriction site associated DNA (RAD) tag sequences per unique
+molecular identifier (UMI).
+
+positional arguments:
+  {sort,add,dump,scan}  commands
+    dump                obtain fasta of read name and 5' UMI sequence
+    add                 add 5' UMI from dumped fasta onto reads of FASTQ
+    sort                order the fastq by the UMI to facilitate processing
+    scan                find most abundant sequence per UMI
+
+optional arguments:
+  -h, --help            show this help message and exit
+```
+
 ##dump
 
 For R2, without a UMI, dump the UMI sequence from R1 into a fasta.
@@ -86,7 +103,7 @@ optional arguments:
 
 ##Dependencies
 
-Uses `toolshed`.
+Uses `toolshed`, `awk`, `sort`, and `tr`.
 ```
 pip install toolshed
 ```
