@@ -9,6 +9,8 @@ from toolshed import nopen
 from collections import Counter
 from itertools import islice, groupby, izip
 
+__version__ = "0.1"
+
 IUPAC = {"A":"A","T":"T","C":"C","G":"G","R":"GA","Y":"TC",
          "M":"AC","K":"GT","S":"GC","W":"AT","H":"ACT",
          "B":"GTC","V":"GCA","D":"GAT","N":"GATC"}
@@ -116,6 +118,10 @@ def run_scan(args):
                         seqs.update([trimmed_seq(gseq, leng, args.five, args.three)])
                 else:
                     break
+            
+            # process the sequences contained the counter to sum based
+            # on a user-set edit distance
+            
             # print a fasta record
             print ">%s\n%s" % (umiseq, seqs.most_common(1)[0][0])
 
@@ -124,7 +130,7 @@ def main(args):
 
 if __name__ == "__main__":
     import argparse
-    p = argparse.ArgumentParser(description=__doc__,
+    p = argparse.ArgumentParser(description=__doc__, version=__version__,
             formatter_class=argparse.RawDescriptionHelpFormatter)
     subp = p.add_subparsers(help='commands')
 
@@ -156,6 +162,8 @@ if __name__ == "__main__":
             help="find most abundant sequence per UMI")
     fscan.add_argument('fastq', metavar="FASTQ", help="reads with UMI to scan")
     fscan.add_argument('umi', metavar="UMI", help='IUPAC sequence of the UMI, e.g. NNNNNV')
+    # fscan.add_argument('-m', '--mismatches', type=int, default=0,
+    # help='allowable mismatches when finding most abundance sequence.')
     fscan.add_argument('-5', dest='five', type=int, default=0, help="number of 5' bases to trim AFTER the UMI sequence [ %(default)s ]")
     fscan.add_argument('-3', dest='three', type=int, default=0, help="number of 3' bases to trim [ %(default)s ]")
     fscan.set_defaults(func=run_scan)
