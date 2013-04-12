@@ -85,18 +85,20 @@ to remove from the respective end. Trimming on the 5' end occurs after the UMI.
 Prints FASTA to stdout.
 
 ```
-usage: radumi scan [-h] [-5 FIVE] [-3 THREE] FASTQ UMI
+usage: radumi scan [-h] [-m MISMATCHES] [-5 FIVE] [-3 THREE] FASTQ UMI
 
 Finds most abundant sequence per valid UMI.
 
 positional arguments:
-  FASTQ       reads with UMI to scan
-  UMI         IUPAC sequence of the UMI, e.g. NNNNNV
+  FASTQ                 reads with UMI to scan
+  UMI                   IUPAC sequence of the UMI, e.g. NNNNNV
 
 optional arguments:
-  -h, --help  show this help message and exit
-  -5 FIVE     number of 5' bases to trim AFTER the UMI sequence [ 0 ]
-  -3 THREE    number of 3' bases to trim [ 0 ]
+  -h, --help            show this help message and exit
+  -m MISMATCHES, --mismatches MISMATCHES
+                        allowable mismatches when finding unique sequences [3]
+  -5 FIVE               number of 5' bases to trim AFTER the UMI sequence [0]
+  -3 THREE              number of 3' bases to trim [0]
 ```
 
 ##Dependencies
