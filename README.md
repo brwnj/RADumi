@@ -1,7 +1,7 @@
 #RADumi
 
 ```
-usage: radumi [-h] {sort,add,dump,scan} ...
+usage: radumi [-h] [-v] {sort,add,dump,scan} ...
 
 Finding unique restriction site associated DNA (RAD) tag sequences per unique
 molecular identifier (UMI).
@@ -15,6 +15,7 @@ positional arguments:
 
 optional arguments:
   -h, --help            show this help message and exit
+  -v, --version         show program's version number and exit
 ```
 
 ##dump
