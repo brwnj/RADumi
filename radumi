@@ -5,11 +5,12 @@ Finding unique restriction site associated DNA (RAD) tag sequences per unique
 molecular identifier (UMI).
 """
 import sys
+import editdist as ed
 from toolshed import nopen
 from collections import Counter
 from itertools import islice, groupby, izip
 
-__version__ = "0.2"
+__version__ = "0.3"
 
 IUPAC = {"A":"A","T":"T","C":"C","G":"G","R":"GA","Y":"TC",
          "M":"AC","K":"GT","S":"GC","W":"AT","H":"ACT",
@@ -97,6 +98,18 @@ def trimmed_seq(seq, leng, t5, t3):
     """docstring for trimmed_seq"""
     return seq[leng + t5:-t3] if t3 > 0 else seq[leng + t5:]
 
+def remove_matches(counter, mismatches):
+    """filters based on Levenshtein distance. returns set."""
+    ignore = set()
+    seqs = set(list(counter))
+    for query in seqs:
+        if query in ignore: continue
+        for target in seqs:
+            if target == query: continue
+            if ed.distance(query, target) < mismatches:
+                ignore.add(target)
+    return seqs - ignore
+
 def run_scan(args):
     """fastq, umi, five, three"""
     leng = len(args.umi)
@@ -119,8 +132,12 @@ def run_scan(args):
                         seqs.update([trimmed_seq(gseq, leng, args.five, args.three)])
                 else:
                     break
+            if args.mismatches == 0:
+                seqs = list(seqs)
+            else:
+                seqs = remove_matches(seqs, args.mismatches)
             # print all unique sequences per UMI
-            for seq in seqs.iterkeys():
+            for seq in seqs:
                 # print a fasta record
                 print ">read_%d:%s\n%s" % (readid, umiseq, seq)
                 readid += 1
@@ -135,21 +152,29 @@ if __name__ == "__main__":
     subp = p.add_subparsers(help='commands')
 
     # dump UMI sequence from R1 into fasta
-    fdump = subp.add_parser('dump', description="Prints fasta of read name and 5' UMI sequence.",
+    fdump = subp.add_parser('dump',
+            description="Prints fasta of read name and 5' UMI sequence.",
             help="obtain fasta of read name and 5' UMI sequence")
-    fdump.add_argument('fastq', metavar="FASTQ", help="fastq containing a UMI")
-    fdump.add_argument('length', metavar="LENGTH", type=int, help="length of the UMI sequence")
+    fdump.add_argument('fastq', metavar="FASTQ",
+            help="fastq containing a UMI")
+    fdump.add_argument('length', metavar="LENGTH", type=int,
+            help="length of the UMI sequence")
     fdump.set_defaults(func=run_dump)
 
     # attach UMI of R1 onto R2 for identification
-    fadd = subp.add_parser('add', description="Add UMI of dumped FASTA onto matched read name of FASTQ on the 5' end. Quality of the UMI will be ']'.",
+    fadd = subp.add_parser('add',
+            description="Add UMI of dumped FASTA onto matched read name of \
+            FASTQ on the 5' end. Quality of the UMI will be ']'.",
             help="add 5' UMI from dumped fasta onto reads of FASTQ")
-    fadd.add_argument('fastq', metavar="FASTQ", help="reads onto which to add the UMI")
-    fadd.add_argument('fasta', metavar="FASTA", help="dumped UMI sequences")
+    fadd.add_argument('fastq', metavar="FASTQ",
+            help="reads onto which to add the UMI")
+    fadd.add_argument('fasta', metavar="FASTA",
+            help="dumped UMI sequences")
     fadd.set_defaults(func=run_add)
 
     # sorting the fastq by umi
-    fsort = subp.add_parser('sort', description="Sorts fastq by UMI.",
+    fsort = subp.add_parser('sort',
+            description="Sorts fastq by UMI.",
             help="order the fastq by the UMI to facilitate processing")
     fsort.add_argument('fastq', metavar='FASTQ',
             help='unsorted reads with incorporated UMI')
@@ -158,14 +183,19 @@ if __name__ == "__main__":
     fsort.set_defaults(func=run_sort)
     
     # find most abundance sequence per umi
-    fscan = subp.add_parser('scan', description="Finds most abundant sequence per valid UMI.",
+    fscan = subp.add_parser('scan',
+            description="Finds most abundant sequence per valid UMI.",
             help="find most abundant sequence per UMI")
-    fscan.add_argument('fastq', metavar="FASTQ", help="reads with UMI to scan")
-    fscan.add_argument('umi', metavar="UMI", help='IUPAC sequence of the UMI, e.g. NNNNNV')
-    # fscan.add_argument('-m', '--mismatches', type=int, default=0,
-    # help='allowable mismatches when finding most abundance sequence.')
-    fscan.add_argument('-5', dest='five', type=int, default=0, help="number of 5' bases to trim AFTER the UMI sequence [ %(default)s ]")
-    fscan.add_argument('-3', dest='three', type=int, default=0, help="number of 3' bases to trim [ %(default)s ]")
+    fscan.add_argument('fastq', metavar="FASTQ",
+            help="reads with UMI to scan")
+    fscan.add_argument('umi', metavar="UMI",
+            help='IUPAC sequence of the UMI, e.g. NNNNNV')
+    fscan.add_argument('-m', '--mismatches', type=int, default=3,
+            help='allowable mismatches when finding unique sequences [%(default)s]')
+    fscan.add_argument('-5', dest='five', type=int, default=0,
+            help="number of 5' bases to trim AFTER the UMI sequence [%(default)s]")
+    fscan.add_argument('-3', dest='three', type=int, default=0,
+            help="number of 3' bases to trim [%(default)s]")
     fscan.set_defaults(func=run_scan)
     
     main(p.parse_args())
