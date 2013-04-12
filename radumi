@@ -9,7 +9,7 @@ from toolshed import nopen
 from collections import Counter
 from itertools import islice, groupby, izip
 
-__version__ = "0.1"
+__version__ = "0.2"
 
 IUPAC = {"A":"A","T":"T","C":"C","G":"G","R":"GA","Y":"TC",
          "M":"AC","K":"GT","S":"GC","W":"AT","H":"ACT",
@@ -100,6 +100,7 @@ def trimmed_seq(seq, leng, t5, t3):
 def run_scan(args):
     """fastq, umi, five, three"""
     leng = len(args.umi)
+    readid = 0
     with nopen(args.fastq) as fh:
         fqiter = read_fastq(fh)
         for name, seq, qual in fqiter:
@@ -118,12 +119,11 @@ def run_scan(args):
                         seqs.update([trimmed_seq(gseq, leng, args.five, args.three)])
                 else:
                     break
-            
-            # process the sequences contained the counter to sum based
-            # on a user-set edit distance
-            
-            # print a fasta record
-            print ">%s\n%s" % (umiseq, seqs.most_common(1)[0][0])
+            # print all unique sequences per UMI
+            for seq in seqs.iterkeys():
+                # print a fasta record
+                print ">read_%d:%s\n%s" % (readid, umiseq, seq)
+                readid += 1
 
 def main(args):
     args.func(args)
