@@ -281,7 +281,7 @@ if __name__ == "__main__":
     fscanp = subp.add_parser('scanp',
             description="Finds most abundant sequence per valid UMI among \
                     paired-end reads.",
-            help="find most abundant sequence per UMI")
+            help="find most abundant sequence per UMI given paired-end reads")
     fscanp.add_argument('r1i', metavar="R1-IN",
             help="R1 FASTQ with UMI to scan.")
     fscanp.add_argument('r2i', metavar="R2-IN",

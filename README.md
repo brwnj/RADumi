@@ -13,7 +13,7 @@ positional arguments:
     add                 add 5' UMI from dumped fasta onto reads of FASTQ
     sort                order the fastq by the UMI to facilitate processing
     scan                find most abundant sequence per UMI
-    scanp               find most abundant sequence per UMI
+    scanp               find most abundant sequence per UMI given paired-end reads
 
 optional arguments:
   -h, --help            show this help message and exit
