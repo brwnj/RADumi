@@ -1,17 +1,19 @@
 #RADumi
 
 ```
-usage: radumi [-h] [-v] {sort,add,dump,scan} ...
+usage: radumi [-h] [-v] {sort,add,scanp,dump,scan} ...
 
 Finding unique restriction site associated DNA (RAD) tag sequences per unique
 molecular identifier (UMI).
 
 positional arguments:
-  {sort,add,dump,scan}  commands
+  {sort,add,scanp,dump,scan}
+                        commands
     dump                obtain fasta of read name and 5' UMI sequence
     add                 add 5' UMI from dumped fasta onto reads of FASTQ
     sort                order the fastq by the UMI to facilitate processing
     scan                find most abundant sequence per UMI
+    scanp               find most abundant sequence per UMI
 
 optional arguments:
   -h, --help            show this help message and exit
