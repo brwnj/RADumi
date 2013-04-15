@@ -102,6 +102,36 @@ optional arguments:
   -3 THREE              number of 3' bases to trim [0]
 ```
 
+##scanp
+
+Scan for paired-end reads.
+
+```
+usage: radumi scanp [-h] [-m MISMATCHES] [--r1-5 R1FIVE] [--r1-3 R1THREE]
+                    [--r2-5 R2FIVE] [--r2-3 R2THREE]
+                    R1-IN R2-IN R1-OUT R2-OUT UMI
+
+Finds most abundant sequence per valid UMI among paired-end reads.
+
+positional arguments:
+  R1-IN                 R1 FASTQ with UMI to scan.
+  R2-IN                 R2 FASTQ with UMI to scan.
+  R1-OUT                R1 output FASTA.
+  R2-OUT                R2 output FASTA.
+  UMI                   IUPAC sequence of the UMI, e.g. NNNNNV
+
+optional arguments:
+  -h, --help            show this help message and exit
+  -m MISMATCHES, --mismatches MISMATCHES
+                        allowable mismatches when finding unique sequences [3]
+  --r1-5 R1FIVE         number of 5' bases to trim AFTER the UMI sequence in
+                        R1 [0]
+  --r1-3 R1THREE        number of 3' bases to trim in R1 [0]
+  --r2-5 R2FIVE         number of 5' bases to trim AFTER the UMI sequence in
+                        R2 [0]
+  --r2-3 R2THREE        number of 3' bases to trim in R2 [0]
+```
+
 ##Dependencies
 
 Uses `toolshed`, `awk`, `sort`, and `tr`.
