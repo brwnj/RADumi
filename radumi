@@ -10,7 +10,7 @@ from toolshed import nopen
 from collections import Counter, defaultdict
 from itertools import islice, groupby, izip
 
-__version__ = "0.4"
+__version__ = "0.5"
 
 IUPAC = {"A":"A","T":"T","C":"C","G":"G","R":"GA","Y":"TC",
          "M":"AC","K":"GT","S":"GC","W":"AT","H":"ACT",
@@ -101,14 +101,21 @@ def trimmed_seq(seq, leng, t5, t3):
 
 def remove_matches(counter, mismatches):
     """filters based on Levenshtein distance. returns set."""
+    # what to remove from the set
     ignore = set()
+    # what to skip during iteration
+    seen = set()
+    # inherently ordered by abundance
     seqs = set(list(counter))
-    for query in seqs:
-        if query in ignore: continue
-        for target in seqs:
-            if target == query: continue
-            if ed.distance(query, target) < mismatches:
-                ignore.add(target)
+    for target in seqs:
+        if target in seen: continue
+        seen.add(target)
+        for query in seqs:
+            if query in seen: continue
+            if ed.distance(target, query) < mismatches:
+                ignore.add(query)
+                # no longer calculate distance for this query
+                seen.add(query)
     return seqs - ignore
 
 def run_scan(args):
@@ -146,16 +153,19 @@ def run_scan(args):
 def process_pairs(r1_out, r2_out, r1counter, r1dd, r2d, umiseq, mismatches, readid):
     """filters based on Levenshtein distance."""
     ignore = set()
+    seen = set()
     r1seqs = set(list(r1counter))
-    for query in r1seqs:
-        if query in ignore: continue
-        for target in r1seqs:
-            if target == query: continue
-            if ed.distance(query, target) < mismatches:
-                for name in r1dd[target]:
+    for target in r1seqs:
+        if target in seen: continue
+        seen.add(target)
+        for query in r1seqs:
+            if query in seen: continue
+            if ed.distance(target, query) < mismatches:
+                for name in r1dd[query]:
                     # add similar read names to appropriate bin
-                    r1dd[query].append(name)
-                ignore.add(target)
+                    r1dd[target].append(name)
+                ignore.add(query)
+                seen.add(query)
 
     chosen_seqs = r1seqs - ignore
     # find most abundant R2 and print reads
