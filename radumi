@@ -10,7 +10,7 @@ from toolshed import nopen
 from collections import Counter, defaultdict
 from itertools import islice, groupby, izip
 
-__version__ = "0.5"
+__version__ = "0.6"
 
 IUPAC = {"A":"A","T":"T","C":"C","G":"G","R":"GA","Y":"TC",
          "M":"AC","K":"GT","S":"GC","W":"AT","H":"ACT",
@@ -99,6 +99,14 @@ def trimmed_seq(seq, leng, t5, t3):
     """docstring for trimmed_seq"""
     return seq[leng + t5:-t3] if t3 > 0 else seq[leng + t5:]
 
+def distance(a, b):
+    """Calculate Levenshtein distance accounting for length differences between
+    the two strings. Returns int.
+    >>> distance('CATGGGTGGTTCAGTGGTAGAATTCTCGCCTGCC', 'GTGCTGTAGGCATT')
+    2
+    """
+    return ed.distance(a, b) - abs(len(a) - len(b))
+
 def remove_matches(counter, mismatches):
     """filters based on Levenshtein distance. returns set."""
     # what to remove from the set
@@ -112,7 +120,7 @@ def remove_matches(counter, mismatches):
         seen.add(target)
         for query in seqs:
             if query in seen: continue
-            if ed.distance(target, query) < mismatches:
+            if distance(target, query) < mismatches:
                 ignore.add(query)
                 # no longer calculate distance for this query
                 seen.add(query)
@@ -160,7 +168,7 @@ def process_pairs(r1_out, r2_out, r1counter, r1dd, r2d, umiseq, mismatches, read
         seen.add(target)
         for query in r1seqs:
             if query in seen: continue
-            if ed.distance(target, query) < mismatches:
+            if distance(target, query) < mismatches:
                 for name in r1dd[query]:
                     # add similar read names to appropriate bin
                     r1dd[target].append(name)
