@@ -100,12 +100,18 @@ def trimmed_seq(seq, leng, t5, t3):
     return seq[leng + t5:-t3] if t3 > 0 else seq[leng + t5:]
 
 def distance(a, b):
-    """Calculate Levenshtein distance accounting for length differences between
-    the two strings. Returns int.
-    >>> distance('CATGGGTGGTTCAGTGGTAGAATTCTCGCCTGCC', 'GTGCTGTAGGCATT')
-    2
+    """find best edit distance between two strings of potentially uneven length.
     """
-    return ed.distance(a, b) - abs(len(a) - len(b))
+    la, lb = len(a), len(b)
+    if la < lb:
+        return distance(b, a)
+    if la == lb:
+        return ed.distance(a, b)
+    else:
+        dists = []
+        for i in xrange(0, la - lb):
+            dists.append(ed.distance(a[i:i+lb], b))
+        return min(dists)
 
 def remove_matches(counter, mismatches):
     """filters based on Levenshtein distance. returns set."""
