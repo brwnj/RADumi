@@ -10,7 +10,7 @@ from toolshed import nopen
 from collections import Counter, defaultdict
 from itertools import islice, groupby, izip
 
-__version__ = "0.6"
+__version__ = "0.7"
 
 IUPAC = {"A":"A","T":"T","C":"C","G":"G","R":"GA","Y":"TC",
          "M":"AC","K":"GT","S":"GC","W":"AT","H":"ACT",
@@ -109,7 +109,7 @@ def distance(a, b):
         return ed.distance(a, b)
     else:
         dists = []
-        for i in xrange(0, la - lb):
+        for i in xrange(0, la-lb+1):
             dists.append(ed.distance(a[i:i+lb], b))
         return min(dists)
 
@@ -331,4 +331,5 @@ if __name__ == "__main__":
             help="number of 3' bases to trim in R2 [%(default)s]")
     fscanp.set_defaults(func=run_scanp)
     
-    main(p.parse_args())
+    args = p.parse_args()
+    main(args)
