@@ -6,6 +6,7 @@ molecular identifier (UMI).
 """
 import sys
 import editdist as ed
+import subprocess as sp
 from toolshed import nopen
 from collections import Counter, defaultdict
 from itertools import islice, groupby, izip
@@ -84,16 +85,14 @@ def run_add(args):
 def run_sort(args):
     """fastq, length"""
     if args.fastq.endswith(".gz"):
-        cmd = "| gunzip -c %s | " % args.fastq
+        cmd = "gunzip -c %s | " % args.fastq
     else:
-        cmd = "| cat %s | " % args.fastq
+        cmd = "cat %s | " % args.fastq
     # sort by the UMI, then by read name for paired-end sync
-    cmd += """awk '{ printf($0); n++; if(n%4==0){ printf("\\n") } else { printf("\\t") } }' | \
-                awk '{ i=substr($2,1,8); print i"\\t"$0 }' | \
-                sort -k1,1 -k2,2 | \
-                cut -f 2,3,4,5 | \
-                tr "\\t" "\\n\""""
-    print "\n".join([line[:-1] for line in nopen(cmd)])
+    cmd += """awk '{printf($0);n++;if(n%4==0){printf("\\n")}else{printf("\\t")}}' |\
+                awk '{i=substr($2,1,8); print i"\\t"$0}' | sort -k1,1 -k2,2 |\
+                cut -f 2,3,4,5 | tr "\\t" "\\n\""""
+    sp.call(cmd, shell=True)
 
 def trimmed_seq(seq, leng, t5, t3):
     """docstring for trimmed_seq"""
@@ -165,9 +164,10 @@ def run_scan(args):
                 readid += 1
 
 def process_pairs(r1_out, r2_out, r1counter, r1dd, r2d, umiseq, mismatches, readid):
-    """filters based on Levenshtein distance."""
+    """prints every unique read per umi"""
     ignore = set()
     seen = set()
+    r1seqs = []
     r1seqs = set(list(r1counter))
     for target in r1seqs:
         if target in seen: continue
@@ -180,7 +180,6 @@ def process_pairs(r1_out, r2_out, r1counter, r1dd, r2d, umiseq, mismatches, read
                     r1dd[target].append(name)
                 ignore.add(query)
                 seen.add(query)
-
     chosen_seqs = r1seqs - ignore
     # find most abundant R2 and print reads
     for seq in chosen_seqs:
