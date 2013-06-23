@@ -11,36 +11,58 @@ from toolshed import nopen
 from collections import Counter, defaultdict
 from itertools import islice, groupby, izip
 
-__version__ = "0.7"
+__version__ = "0.9"
 
 IUPAC = {"A":"A","T":"T","C":"C","G":"G","R":"GA","Y":"TC",
          "M":"AC","K":"GT","S":"GC","W":"AT","H":"ACT",
          "B":"GTC","V":"GCA","D":"GAT","N":"GATC"}
 
-def read_fastq(fh):
-    """fastq parser that returns name, seq, and qual."""
-    while True:
-        values = list(islice(fh, 4))
-        if len(values) == 4:
-            id1, seq, id2, qual = values
-        elif len(values) == 0:
-            raise StopIteration
-        else:
-            raise EOFError("unexpected end of file")
-        assert id1.startswith('@')
-        assert id2.startswith('+')
-        assert len(seq) == len(qual)
-        yield id1[1:-1], seq[:-1], qual[:-1]
+def readfq(fq):
+    class Fastq(object):
+        def __init__(self, args):
+            self.name = args[0][1:]
+            self.seq = args[1]
+            self.qual = args[3]
+            assert len(self.seq) == len(self.qual)
+    
+        def __repr__(self):
+            return "Fastq({name})".format(name=self.name)
+    
+        def __str__(self):
+            return "@{name}\n{seq}\n+\n{qual}".format(name=self.name,
+                    seq=self.seq, qual=self.qual)
+    
+    with nopen(fq) as fh:
+        fqclean = (x.strip("\r\n") for x in fh if x.strip())
+        while True:
+            rd = [x for x in islice(fqclean, 4)]
+            if not rd: raise StopIteration
+            assert all(rd) and len(rd) == 4
+            yield Fastq(rd)
 
-def read_fasta(fa):
-    """parses fasta filehandle and returns name and sequence."""
-    for header, group in groupby(fa, lambda line: line[0] == '>'):
-        if header:
-            line = group.next()
-            name = line[1:].strip()
-        else:
-            seq = ''.join(line.strip() for line in group)
-            yield name, seq
+def readfa(fa):
+    class Fasta(object):
+        def __init__(self, name, seq):
+            self.name = name
+            self.seq = seq
+    
+        def __repr__(self):
+            return "Fasta({name})".format(name=self.name)
+    
+        def __str__(self):
+            return ">{name}\n{seq}".format(
+                        name=self.name,
+                        seq="\n".join([self.seq[i:i + 70] for i in \
+                                range(0, len(self.seq), 70)]))
+    
+    with nopen(fa) as fh:
+        for header, group in groupby(fh, lambda line: line[0] == '>'):
+            if header:
+                line = group.next()
+                name = line[1:].strip()
+            else:
+                seq = ''.join(line.strip() for line in group)
+                yield Fasta(name, seq)
 
 def valid_umi(iupac, umi):
     """parse UMI sequence to validate against IUPAC sequence."""
@@ -53,34 +75,32 @@ def valid_umi(iupac, umi):
     return True
 
 def run_dump(args):
-    """fastq, umi, position"""
-    with nopen(args.fastq) as fh:
-        for name, seq, qual in read_fastq(fh):
-            umi = seq[:args.length]
-            print ">%s\n%s" % (name.split()[0], umi)
+    """incoming args: fastq, length"""
+    leng = args.length
+    for r in readfq(args.fastq):
+        umi = r.seq[:leng]
+        print ">%s\n%s" % (r.name.split()[0], umi)
 
 def fasta_to_dict(fasta):
-    """docstring for fasta_to_dict"""
     d = {}
-    with nopen(fasta) as fh:
-        for name, seq in read_fasta(fh):
-            # should no longer need to split here
-            d[name.split()[0]] = seq
+    for r in readfa(fasta):
+        d[r.name.split()[0]] = r.seq
     return d
 
 def run_add(args):
-    """fastq, fasta"""
+    """incoming args: fastq, fasta"""
     umi_d = fasta_to_dict(args.fasta)
     umi_qual = 'J' * len(umi_d[umi_d.keys()[0]])
-    with nopen(args.fastq) as fh:
-        for name, seq, qual in read_fastq(fh):
-            try:
-                umi = umi_d[name.split()[0]]
-                assert len(umi) == len(umi_qual)
-            except KeyError:
-                # read not present in R1; flag with invalid UMI
-                umi = 'X' * len(umi_qual)
-            print "@%s\n%s%s\n+\n%s%s" % (name, umi, seq, umi_qual, qual)
+    for r in readfq(args.fastq):
+        try:
+            umi = umi_d[r.name.split()[0]]
+            assert len(umi) == len(umi_qual)
+        except KeyError:
+            # read not present in R1; flag with invalid UMI
+            umi = 'X' * len(umi_qual)
+        r.seq = "{umi}{seq}".format(umi=umi, seq=r.seq)
+        r.qual = "{umi_qual}{qual}".format(umi_qual=umi_qual, qual=r.qual)
+        print r
 
 def run_sort(args):
     """fastq, length"""
@@ -89,13 +109,14 @@ def run_sort(args):
     else:
         cmd = "cat %s | " % args.fastq
     # sort by the UMI, then by read name for paired-end sync
-    cmd += """awk '{printf($0);n++;if(n%4==0){printf("\\n")}else{printf("\\t")}}' |\
-                awk '{i=substr($2,1,8); print i"\\t"$0}' | sort -k1,1 -k2,2 |\
-                cut -f 2,3,4,5 | tr "\\t" "\\n\""""
+    cmd += ("""awk '{printf($0);n++;if(n%4==0){printf("\\n")}else{printf("\\t")}}' | """
+                """awk '{i=substr($2,1,length); print i"\\t"$0}' | """
+                """sort -k1,1 -k2,2 | """
+                """cut -f 2,3,4,5 | """
+                """tr "\\t" "\\n\"""").replace("length", args.length)
     sp.call(cmd, shell=True)
 
 def trimmed_seq(seq, leng, t5, t3):
-    """docstring for trimmed_seq"""
     return seq[leng + t5:-t3] if t3 > 0 else seq[leng + t5:]
 
 def distance(a, b):
@@ -255,7 +276,7 @@ def main(args):
 if __name__ == "__main__":
     import argparse
     p = argparse.ArgumentParser(description=__doc__, version=__version__,
-            formatter_class=argparse.RawDescriptionHelpFormatter)
+            formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     subp = p.add_subparsers(help='commands')
 
     # dump UMI sequence from R1 into fasta
@@ -298,11 +319,11 @@ if __name__ == "__main__":
     fscan.add_argument('umi', metavar="UMI",
             help='IUPAC sequence of the UMI, e.g. NNNNNV')
     fscan.add_argument('-m', '--mismatches', type=int, default=3,
-            help='allowable mismatches when finding unique sequences [%(default)s]')
+            help='allowable mismatches when finding unique sequences')
     fscan.add_argument('-5', dest='five', type=int, default=0,
-            help="number of 5' bases to trim AFTER the UMI sequence [%(default)s]")
+            help="number of 5' bases to trim AFTER the UMI sequence")
     fscan.add_argument('-3', dest='three', type=int, default=0,
-            help="number of 3' bases to trim [%(default)s]")
+            help="number of 3' bases to trim")
     fscan.set_defaults(func=run_scan)
 
     # find most abundance sequence per umi among paired-end reads
@@ -319,15 +340,15 @@ if __name__ == "__main__":
     fscanp.add_argument('umi', metavar="UMI",
             help='IUPAC sequence of the UMI, e.g. NNNNNV')
     fscanp.add_argument('-m', '--mismatches', type=int, default=3,
-            help='allowable mismatches when finding unique sequences [%(default)s]')
+            help='allowable mismatches when finding unique sequences')
     fscanp.add_argument('--r1-5', dest='r1five', type=int, default=0,
-            help="number of 5' bases to trim AFTER the UMI sequence in R1 [%(default)s]")
+            help="number of 5' bases to trim AFTER the UMI sequence in R1")
     fscanp.add_argument('--r1-3', dest='r1three', type=int, default=0,
-            help="number of 3' bases to trim in R1 [%(default)s]")
+            help="number of 3' bases to trim in R1")
     fscanp.add_argument('--r2-5', dest='r2five', type=int, default=0,
-            help="number of 5' bases to trim AFTER the UMI sequence in R2 [%(default)s]")
+            help="number of 5' bases to trim AFTER the UMI sequence in R2")
     fscanp.add_argument('--r2-3', dest='r2three', type=int, default=0,
-            help="number of 3' bases to trim in R2 [%(default)s]")
+            help="number of 3' bases to trim in R2")
     fscanp.set_defaults(func=run_scanp)
     
     args = p.parse_args()
